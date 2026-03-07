@@ -1,0 +1,5 @@
+/target
+.env
+CHANGELOG.md
+README.md
+Cargo.lock
