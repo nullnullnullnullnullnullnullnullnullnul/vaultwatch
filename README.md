@@ -1,5 +1,9 @@
 # VaultWatch - ERC-4626 Deposit Monitor
 
+[![ci](https://github.com/nullnullnullnullnullnullnullnullnullnul/vaultwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/nullnullnullnullnullnullnullnullnullnul/vaultwatch/actions/workflows/ci.yml)
+[![Rust 2021](https://img.shields.io/badge/Rust-2021-CE422B.svg)](https://www.rust-lang.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A lightweight Rust bot that monitors any ERC-4626 vault for deposit availability and sends a Telegram notification when capacity opens up.
 
 ## How It Works

@@ -1,4 +1,20 @@
-/target
+# Rust build
+/target/
+**/*.rs.bk
+
+# Local environment
 .env
-CHANGELOG.md
-Cargo.lock
+
+# MSVC debug info
+*.pdb
+
+# Editors / IDEs
+.vscode/
+.idea/
+.cache/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
