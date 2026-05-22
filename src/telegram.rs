@@ -55,7 +55,7 @@ pub async fn send(client: &reqwest::Client, tg: &TelegramConfig, message: &str) 
         parse_mode: "HTML",
         disable_web_page_preview: false,
     };
-    match client.post(&tg.api_url()).json(&body).send().await {
+    match client.post(tg.api_url()).json(&body).send().await {
         Ok(resp) if resp.status().is_success() => {
             log::positive("Telegram alert sent");
         }

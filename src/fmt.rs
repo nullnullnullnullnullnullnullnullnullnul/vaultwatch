@@ -28,7 +28,7 @@ fn add_thousands(s: &str) -> String {
     let mut result = String::with_capacity(s.len() + s.len() / 3);
     for (i, &b) in bytes.iter().enumerate() {
         let remaining = bytes.len() - i;
-        if i > 0 && remaining % 3 == 0 {
+        if i > 0 && remaining.is_multiple_of(3) {
             result.push(',');
         }
         result.push(b as char);
