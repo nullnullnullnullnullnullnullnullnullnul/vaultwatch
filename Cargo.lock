@@ -3484,7 +3484,6 @@ version = "0.1.0"
 dependencies = [
  "dotenvy",
  "ethers",
- "ethers-core",
  "eyre",
  "reqwest",
  "serde",
