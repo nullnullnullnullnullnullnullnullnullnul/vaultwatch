@@ -63,7 +63,11 @@ pub async fn send(client: &reqwest::Client, tg: &TelegramConfig, message: &str) 
             log::error(&format!("Telegram API returned {}", resp.status()));
         }
         Err(e) => {
-            log::error(&format!("Telegram request failed: {e}"));
+            // `reqwest::Error`'s Display includes the request URL by
+            // default, and the Bot API URL has the bot token in the
+            // path (`/bot<TOKEN>/sendMessage`). Strip the URL before
+            // logging so the token never reaches stdout.
+            log::error(&format!("Telegram request failed: {}", e.without_url()));
         }
     }
 }

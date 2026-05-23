@@ -39,6 +39,26 @@ impl Config {
         }
     }
 
+    /// Return the RPC URL stripped of path, query, and credentials,
+    /// leaving only `scheme://host[:port]`. Hosted RPC providers
+    /// (Alchemy, Infura, QuickNode) embed the API key in the path
+    /// (`/v2/<KEY>`) or the userinfo segment; logging the full URL
+    /// to stdout (banners, journald, hosting consoles) leaks it.
+    /// Falls back to `<unparseable>` on a malformed URL, which is
+    /// fine - the connection will fail loudly in connect() anyway.
+    pub fn rpc_url_safe(&self) -> String {
+        match reqwest::Url::parse(&self.rpc_url) {
+            Ok(u) => match u.host_str() {
+                Some(host) => match u.port() {
+                    Some(p) => format!("{}://{host}:{p}", u.scheme()),
+                    None => format!("{}://{host}", u.scheme()),
+                },
+                None => "<no host>".to_owned(),
+            },
+            Err(_) => "<unparseable>".to_owned(),
+        }
+    }
+
     /// Print a startup banner summarizing the active configuration.
     pub fn print_banner(&self) {
         let tg_status = if self.telegram.is_some() {
@@ -52,7 +72,7 @@ impl Config {
             "Vault     : {} ({})",
             self.vault_name, self.vault_address
         ));
-        log::info(&format!("RPC       : {}", self.rpc_url));
+        log::info(&format!("RPC       : {}", self.rpc_url_safe()));
         println!("\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}");
         log::info(&format!("Decimals  : {}", self.decimals));
         log::info(&format!("Poll      : {}s", self.poll_interval.as_secs()));
