@@ -18,6 +18,9 @@ const TELEGRAM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10)
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> eyre::Result<()> {
     dotenvy::dotenv().ok();
+    // Install the tracing subscriber after dotenv so RUST_LOG
+    // from .env is picked up by EnvFilter.
+    log::init();
     let cfg = config::Config::from_env();
     cfg.print_banner();
     let vault = contract::connect(&cfg)?;
