@@ -23,8 +23,43 @@ abigen!(
     r#"[
     function maxDeposit(address receiver) external view returns (uint256)
     function totalAssets() external view returns (uint256)
+    function decimals() external view returns (uint8)
   ]"#
 );
+
+/// Read the vault's `decimals()` view function and assert it
+/// matches what the operator configured in `TOKEN_DECIMALS`. ERC-4626
+/// inherits ERC-20 which mandates this function; misconfigured
+/// decimals turn the threshold math into nonsense (off by a factor
+/// of 10^12 for a USDC vault configured as 18-decimal), and a
+/// silent override would surprise the operator. So: fail-closed
+/// on a mismatch and force them to fix `.env`.
+///
+/// # Errors
+///
+/// - The on-chain call fails (RPC unreachable, vault does not
+///   expose `decimals`).
+/// - The on-chain value differs from `cfg.decimals`.
+pub async fn assert_decimals(
+    contract: &Erc4626Vault<Provider<Http>>,
+    cfg: &Config,
+) -> eyre::Result<()> {
+    let on_chain: u8 = contract.decimals().call().await?;
+    if u32::from(on_chain) != cfg.decimals {
+        eyre::bail!(
+            "TOKEN_DECIMALS={} but the vault reports decimals()={on_chain} on-chain; \
+             refusing to start with a precision mismatch (threshold math would be \
+             off by a factor of 10^{})",
+            cfg.decimals,
+            (cfg.decimals as i32 - on_chain as i32).abs(),
+        );
+    }
+    log::info(&format!(
+        "decimals verified against vault: {} matches on-chain",
+        cfg.decimals,
+    ));
+    Ok(())
+}
 
 /// Create a provider with a bounded request timeout and bind it to
 /// the vault contract.
@@ -101,13 +136,22 @@ pub async fn poll_once(
 }
 
 /// Build the styled HTML alert message sent to Telegram.
+///
+/// `cfg.vault_name` and `cfg.vault_address` are operator-supplied,
+/// so they get `html_escape`d before interpolation. The address
+/// also flows into a `href="..."` attribute; escaping the quote
+/// and ampersand is enough since the value is already constrained
+/// to hex by the address parser at startup.
 fn build_alert_message(cfg: &Config, avail: &str, total: &str) -> String {
     let fill_pct = fmt::fill_percentage(avail, total);
+    let name = fmt::html_escape(&cfg.vault_name);
+    let addr = fmt::html_escape(&cfg.vault_address);
+    let addr_short = fmt::html_escape(&cfg.vault_address[..10]);
     format!(
     "\u{1F6A8} <b>VaultWatch Alert</b>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
-     \u{1F3E6} <b>Vault:</b>  {}\n\
-     \u{1F517} <a href=\"https://etherscan.io/address/{}\">{}</a>\n\
+     \u{1F3E6} <b>Vault:</b>  {name}\n\
+     \u{1F517} <a href=\"https://etherscan.io/address/{addr}\">{addr_short}</a>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{2705} <b>Available:</b>  {avail}\n\
      \u{1F4B0} <b>Total Assets:</b>  {total}\n\
@@ -115,9 +159,6 @@ fn build_alert_message(cfg: &Config, avail: &str, total: &str) -> String {
      \u{1F3AF} <b>Threshold:</b>  {}\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{23F0} <i>{}</i>",
-    cfg.vault_name,
-    cfg.vault_address,
-    &cfg.vault_address[..10],
     cfg.threshold,
     fmt::timestamp(),
   )

@@ -57,19 +57,18 @@ impl Config {
     ///
     /// Panics if `RPC_URL` or `VAULT_ADDRESS` are missing (no sensible default).
     pub fn from_env() -> Self {
-        let decimals: u32 = env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap();
-        let threshold: u64 = env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap();
+        let decimals: u32 = parse_env("TOKEN_DECIMALS", "18");
+        let threshold: u64 = parse_env("DEPOSIT_THRESHOLD", "2000");
         let threshold_atomic = U256::from(threshold) * U256::exp10(decimals as usize);
         let reset_threshold_atomic = threshold_atomic * U256::from(HYSTERESIS_NUMERATOR)
             / U256::from(HYSTERESIS_DENOMINATOR);
+        let poll_secs: u64 = parse_env("POLL_INTERVAL_SECS", "30");
         Self {
             rpc_url: env_var("RPC_URL", None),
             vault_address: env_var("VAULT_ADDRESS", None),
             vault_name: env_var("VAULT_NAME", Some("ERC-4626 Vault")),
             decimals,
-            poll_interval: Duration::from_secs(
-                env_var("POLL_INTERVAL_SECS", Some("30")).parse().unwrap(),
-            ),
+            poll_interval: Duration::from_secs(poll_secs),
             threshold,
             threshold_atomic,
             reset_threshold_atomic,
@@ -133,4 +132,25 @@ pub fn env_var(key: &str, fallback: Option<&str>) -> String {
         (Err(_), Some(def)) => def.to_owned(),
         (Err(_), None) => panic!("{key} must be set in .env"),
     }
+}
+
+/// Read an environment variable and parse it as `T`, falling back to
+/// `fallback` if unset.
+///
+/// Panics with the variable name AND the offending value in the
+/// message so the operator can fix `.env` without grepping the
+/// source. The previous `.parse().unwrap()` shape gave
+/// `called Option::unwrap() on a None value` with no context.
+pub fn parse_env<T>(key: &str, fallback: &str) -> T
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    let raw = env_var(key, Some(fallback));
+    raw.parse().unwrap_or_else(|e| {
+        panic!(
+            "{key}={raw:?} is not a valid {}: {e}",
+            std::any::type_name::<T>()
+        )
+    })
 }

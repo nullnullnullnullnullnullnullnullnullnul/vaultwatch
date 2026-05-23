@@ -75,20 +75,20 @@ pub async fn send(client: &reqwest::Client, tg: &TelegramConfig, message: &str) 
 /// Send a one-time startup notification so the user knows
 /// the bot is online and monitoring.
 pub async fn send_startup(client: &reqwest::Client, tg: &TelegramConfig, cfg: &Config) {
+    let name = fmt::html_escape(&cfg.vault_name);
+    let addr = fmt::html_escape(&cfg.vault_address);
+    let addr_short = fmt::html_escape(&cfg.vault_address[..10]);
     let msg = format!(
     "\u{2705} <b>VaultWatch Online</b>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
-     \u{1F3E6} <b>Vault:</b>  {}\n\
-     \u{1F517} <a href=\"https://etherscan.io/address/{}\">{}</a>\n\
+     \u{1F3E6} <b>Vault:</b>  {name}\n\
+     \u{1F517} <a href=\"https://etherscan.io/address/{addr}\">{addr_short}</a>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{2699}\u{FE0F} <b>Polling:</b>  every {}s\n\
      \u{1F3AF} <b>Threshold:</b>  {}\n\
      \u{1F522} <b>Decimals:</b>  {}\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{23F0} <i>Started at {}</i>",
-    cfg.vault_name,
-    cfg.vault_address,
-    &cfg.vault_address[..10],
     cfg.poll_interval.as_secs(),
     cfg.threshold,
     cfg.decimals,
