@@ -64,13 +64,24 @@ cargo run --release
 [?] input     (yellow)
 ```
 
+Verbosity is configurable via `RUST_LOG` (parsed by
+`tracing-subscriber`'s `EnvFilter`). Defaults to `info`.
+
+```bash
+RUST_LOG=vaultwatch=warn cargo run   # silence the per-poll info line
+RUST_LOG=vaultwatch=error cargo run  # only errors
+RUST_LOG=vaultwatch=debug cargo run  # extra detail if added later
+```
+
 ## Tech Stack
 
-| Crate     | Role                                        |
-|-----------|---------------------------------------------|
-| `ethers`  | ERC-4626 contract calls via JSON-RPC        |
-| `tokio`   | Single-threaded async runtime + timer       |
-| `reqwest` | Reusable HTTP client for Telegram Bot API   |
-| `serde`   | JSON serialization for Telegram payloads    |
-| `dotenvy` | Load `.env` file at startup                 |
-| `eyre`    | Error handling                              |
+| Crate                 | Role                                        |
+|-----------------------|---------------------------------------------|
+| `ethers`              | ERC-4626 contract calls via JSON-RPC        |
+| `tokio`               | Single-threaded async runtime + timer       |
+| `reqwest`             | Reusable HTTP client for Telegram Bot API   |
+| `serde`               | JSON serialization for Telegram payloads    |
+| `dotenvy`             | Load `.env` file at startup                 |
+| `tracing`             | Structured logging emit                     |
+| `tracing-subscriber`  | Runtime log filtering (`RUST_LOG`) + custom format |
+| `eyre`                | Error handling                              |
