@@ -29,6 +29,13 @@ async fn main() -> eyre::Result<()> {
     }
     let mut persisted = state::load(&cfg.state_file);
     let mut interval = tokio::time::interval(cfg.poll_interval);
+    // Default is MissedTickBehavior::Burst: if poll_once takes
+    // longer than poll_interval (RPC stall, slow network), the
+    // tick scheduler "catches up" by firing all missed ticks
+    // back-to-back as soon as the slow call returns. That is the
+    // wrong shape for an RPC poller - we want a steady cadence,
+    // not a thundering herd when the endpoint recovers.
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         interval.tick().await;
         let previous = persisted.alerted;
