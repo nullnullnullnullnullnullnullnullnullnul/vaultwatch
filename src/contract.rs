@@ -23,8 +23,43 @@ abigen!(
     r#"[
     function maxDeposit(address receiver) external view returns (uint256)
     function totalAssets() external view returns (uint256)
+    function decimals() external view returns (uint8)
   ]"#
 );
+
+/// Read the vault's `decimals()` view function and assert it
+/// matches what the operator configured in `TOKEN_DECIMALS`. ERC-4626
+/// inherits ERC-20 which mandates this function; misconfigured
+/// decimals turn the threshold math into nonsense (off by a factor
+/// of 10^12 for a USDC vault configured as 18-decimal), and a
+/// silent override would surprise the operator. So: fail-closed
+/// on a mismatch and force them to fix `.env`.
+///
+/// # Errors
+///
+/// - The on-chain call fails (RPC unreachable, vault does not
+///   expose `decimals`).
+/// - The on-chain value differs from `cfg.decimals`.
+pub async fn assert_decimals(
+    contract: &Erc4626Vault<Provider<Http>>,
+    cfg: &Config,
+) -> eyre::Result<()> {
+    let on_chain: u8 = contract.decimals().call().await?;
+    if u32::from(on_chain) != cfg.decimals {
+        eyre::bail!(
+            "TOKEN_DECIMALS={} but the vault reports decimals()={on_chain} on-chain; \
+             refusing to start with a precision mismatch (threshold math would be \
+             off by a factor of 10^{})",
+            cfg.decimals,
+            (cfg.decimals as i32 - on_chain as i32).abs(),
+        );
+    }
+    log::info(&format!(
+        "decimals verified against vault: {} matches on-chain",
+        cfg.decimals,
+    ));
+    Ok(())
+}
 
 /// Create a provider with a bounded request timeout and bind it to
 /// the vault contract.

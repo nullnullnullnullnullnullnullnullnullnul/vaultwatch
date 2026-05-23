@@ -21,6 +21,7 @@ async fn main() -> eyre::Result<()> {
     let cfg = config::Config::from_env();
     cfg.print_banner();
     let vault = contract::connect(&cfg)?;
+    contract::assert_decimals(&vault, &cfg).await?;
     let http = reqwest::Client::builder()
         .timeout(TELEGRAM_TIMEOUT)
         .build()?;
