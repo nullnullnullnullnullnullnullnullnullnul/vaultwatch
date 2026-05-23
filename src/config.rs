@@ -1,6 +1,9 @@
 //! Application configuration loaded from environment variables.
 
+use std::path::PathBuf;
 use std::time::Duration;
+
+use ethers::types::U256;
 
 use crate::log;
 use crate::telegram::TelegramConfig;
@@ -15,9 +18,37 @@ pub struct Config {
     pub vault_name: String,
     pub decimals: u32,
     pub poll_interval: Duration,
-    pub threshold: f64,
+    /// Whole-token threshold as displayed (e.g. 2000 means 2000 USDC
+    /// regardless of `decimals`). Kept around for the banner and the
+    /// alert message; runtime comparisons use [`Self::threshold_atomic`].
+    pub threshold: u64,
+    /// `threshold` expressed in the token's atomic units
+    /// (`threshold * 10^decimals`). This is the value compared
+    /// against the U256 returned by `maxDeposit()` so the
+    /// comparison happens at full on-chain precision without any
+    /// f64 / string round-trip.
+    pub threshold_atomic: U256,
+    /// Hysteresis floor: the `alerted` flag is reset only when
+    /// `available` drops below this value, NOT just below
+    /// `threshold_atomic`. Without a gap between the two, a vault
+    /// whose available capacity oscillates by even one wei around
+    /// the threshold would alert every poll: alert, dip, reset,
+    /// alert again. Default reset is 95% of the alert threshold;
+    /// see [`HYSTERESIS_NUMERATOR`] / [`HYSTERESIS_DENOMINATOR`].
+    pub reset_threshold_atomic: U256,
+    /// Path to the JSON state file that persists the cooldown flag
+    /// across restarts. Override via `STATE_FILE`; defaults to
+    /// `./vaultwatch.state` next to the working directory.
+    pub state_file: PathBuf,
     pub telegram: Option<TelegramConfig>,
 }
+
+/// Numerator of the hysteresis ratio. With denominator 100, this
+/// produces a 95% reset threshold: alert at T, reset only when
+/// `available < 0.95 * T`. Hardcoded for now; if the project ever
+/// needs per-deployment tuning, lift to an env var.
+const HYSTERESIS_NUMERATOR: u32 = 95;
+const HYSTERESIS_DENOMINATOR: u32 = 100;
 
 impl Config {
     /// Build a [`Config`] from environment variables.
@@ -26,15 +57,23 @@ impl Config {
     ///
     /// Panics if `RPC_URL` or `VAULT_ADDRESS` are missing (no sensible default).
     pub fn from_env() -> Self {
+        let decimals: u32 = env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap();
+        let threshold: u64 = env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap();
+        let threshold_atomic = U256::from(threshold) * U256::exp10(decimals as usize);
+        let reset_threshold_atomic = threshold_atomic * U256::from(HYSTERESIS_NUMERATOR)
+            / U256::from(HYSTERESIS_DENOMINATOR);
         Self {
             rpc_url: env_var("RPC_URL", None),
             vault_address: env_var("VAULT_ADDRESS", None),
             vault_name: env_var("VAULT_NAME", Some("ERC-4626 Vault")),
-            decimals: env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap(),
+            decimals,
             poll_interval: Duration::from_secs(
                 env_var("POLL_INTERVAL_SECS", Some("30")).parse().unwrap(),
             ),
-            threshold: env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap(),
+            threshold,
+            threshold_atomic,
+            reset_threshold_atomic,
+            state_file: PathBuf::from(env_var("STATE_FILE", Some("./vaultwatch.state"))),
             telegram: TelegramConfig::from_env(),
         }
     }

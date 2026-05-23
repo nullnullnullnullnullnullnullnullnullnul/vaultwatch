@@ -12,8 +12,9 @@ A lightweight Rust bot that monitors any ERC-4626 vault for deposit availability
 2. Calls `maxDeposit(address)` to get the current available deposit capacity.
 3. Calls `totalAssets()` for informational context.
 4. If `available >= DEPOSIT_THRESHOLD`, fires a Telegram alert and logs to console.
-5. Alert cooldown: Telegram only fires once per above-threshold window. Resets when available drops below threshold.
-6. Sends a startup notification to Telegram on launch so you know the bot is online.
+5. Alert cooldown: Telegram only fires once per above-threshold window. Resets when available drops below 95% of the threshold (hysteresis, so a vault that oscillates around the threshold does not alert every poll).
+6. The cooldown flag is persisted to `STATE_FILE` (default `./vaultwatch.state`) so a restart while the slot is still open does not re-alert.
+7. Sends a startup notification to Telegram on launch so you know the bot is online.
 
 ## Configuration
 
@@ -29,6 +30,7 @@ All configuration is done via environment variables (`.env` file):
 | `POLL_INTERVAL_SECS` | no       | Seconds between polls (default: 30)            | `30`                                         |
 | `TELEGRAM_BOT_TOKEN` | no       | Telegram Bot API token                         | `123456:ABC-DEF...`                          |
 | `TELEGRAM_CHAT_ID`   | no       | Target chat/channel ID                         | `-1001234567890`                             |
+| `STATE_FILE`         | no       | Path to the cooldown state file (default: `./vaultwatch.state`) | `/var/lib/vaultwatch/state.json` |
 
 Telegram fields are optional. If both are set, the bot sends alerts; otherwise it runs in console-only mode.
 
@@ -41,6 +43,7 @@ src/
   contract.rs    -- ERC-4626 ABI binding, connect, poll logic
   fmt.rs         -- token formatting, fill percentage, timestamp
   log.rs         -- colored console logging with prefixes
+  state.rs       -- on-disk cooldown-flag persistence
   telegram.rs    -- Telegram Bot API (startup + alert messages)
 ```
 

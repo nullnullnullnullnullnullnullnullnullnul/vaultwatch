@@ -7,6 +7,7 @@ mod config;
 mod contract;
 mod fmt;
 mod log;
+mod state;
 mod telegram;
 
 /// Telegram API request budget. The Bot API answers in <1s under
@@ -26,10 +27,26 @@ async fn main() -> eyre::Result<()> {
     if let Some(tg) = &cfg.telegram {
         telegram::send_startup(&http, tg, &cfg).await;
     }
-    let mut alerted = false;
+    let mut persisted = state::load(&cfg.state_file);
     let mut interval = tokio::time::interval(cfg.poll_interval);
+    // Default is MissedTickBehavior::Burst: if poll_once takes
+    // longer than poll_interval (RPC stall, slow network), the
+    // tick scheduler "catches up" by firing all missed ticks
+    // back-to-back as soon as the slow call returns. That is the
+    // wrong shape for an RPC poller - we want a steady cadence,
+    // not a thundering herd when the endpoint recovers.
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         interval.tick().await;
-        contract::poll_once(&vault, &cfg, &http, &mut alerted).await;
+        let previous = persisted.alerted;
+        contract::poll_once(&vault, &cfg, &http, &mut persisted.alerted).await;
+        if persisted.alerted != previous {
+            if let Err(e) = state::save(&cfg.state_file, &persisted) {
+                log::warn(&format!(
+                    "failed to persist state to {}: {e}",
+                    cfg.state_file.display(),
+                ));
+            }
+        }
     }
 }
