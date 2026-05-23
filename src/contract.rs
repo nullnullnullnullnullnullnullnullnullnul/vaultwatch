@@ -72,9 +72,12 @@ pub async fn poll_once(
     let avail = fmt::tokens(available, cfg.decimals);
     let total = fmt::tokens(total_assets, cfg.decimals);
     log::info(&format!("available: {avail} | totalAssets: {total}"));
-    let above = fmt::parse_f64(&avail) >= cfg.threshold;
+    // Compare U256 values directly. The previous code formatted both
+    // sides to a 2-decimal string and re-parsed to f64, which lost
+    // precision and silently coerced any parse failure to 0 (so a
+    // genuine slot opening could miss the alert).
+    let above = available >= cfg.threshold_atomic;
     if !above {
-        // Reset cooldown when available drops below threshold.
         *alerted = false;
         return;
     }

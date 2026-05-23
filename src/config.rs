@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use ethers::types::U256;
+
 use crate::log;
 use crate::telegram::TelegramConfig;
 
@@ -15,7 +17,16 @@ pub struct Config {
     pub vault_name: String,
     pub decimals: u32,
     pub poll_interval: Duration,
-    pub threshold: f64,
+    /// Whole-token threshold as displayed (e.g. 2000 means 2000 USDC
+    /// regardless of `decimals`). Kept around for the banner and the
+    /// alert message; runtime comparisons use [`Self::threshold_atomic`].
+    pub threshold: u64,
+    /// `threshold` expressed in the token's atomic units
+    /// (`threshold * 10^decimals`). This is the value compared
+    /// against the U256 returned by `maxDeposit()` so the
+    /// comparison happens at full on-chain precision without any
+    /// f64 / string round-trip.
+    pub threshold_atomic: U256,
     pub telegram: Option<TelegramConfig>,
 }
 
@@ -26,15 +37,19 @@ impl Config {
     ///
     /// Panics if `RPC_URL` or `VAULT_ADDRESS` are missing (no sensible default).
     pub fn from_env() -> Self {
+        let decimals: u32 = env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap();
+        let threshold: u64 = env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap();
+        let threshold_atomic = U256::from(threshold) * U256::exp10(decimals as usize);
         Self {
             rpc_url: env_var("RPC_URL", None),
             vault_address: env_var("VAULT_ADDRESS", None),
             vault_name: env_var("VAULT_NAME", Some("ERC-4626 Vault")),
-            decimals: env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap(),
+            decimals,
             poll_interval: Duration::from_secs(
                 env_var("POLL_INTERVAL_SECS", Some("30")).parse().unwrap(),
             ),
-            threshold: env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap(),
+            threshold,
+            threshold_atomic,
             telegram: TelegramConfig::from_env(),
         }
     }
