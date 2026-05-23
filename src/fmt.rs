@@ -97,3 +97,97 @@ pub fn timestamp() -> String {
         secs % 60,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tokens_basic_18_decimals() {
+        // 10 * 10^18, 18 decimals -> "10.00"
+        let v = U256::exp10(18) * U256::from(10u64);
+        assert_eq!(tokens(v, 18), "10.00");
+    }
+
+    #[test]
+    fn tokens_with_thousands_separator() {
+        // From the docstring example: 195_996_854.302 with 18 decimals.
+        let v = U256::from_dec_str("195996854302000000000000000").unwrap();
+        assert_eq!(tokens(v, 18), "195,996,854.30");
+    }
+
+    #[test]
+    fn tokens_zero() {
+        assert_eq!(tokens(U256::zero(), 18), "0.00");
+    }
+
+    #[test]
+    fn tokens_six_decimals_usdc_style() {
+        // 1,234.567890 USDC -> "1,234.56" (truncation, not rounding;
+        // we lose the last 4 decimal places by design for the
+        // human-readable column).
+        let v = U256::from(1_234_567_890u64);
+        assert_eq!(tokens(v, 6), "1,234.56");
+    }
+
+    #[test]
+    fn add_thousands_short_strings() {
+        assert_eq!(add_thousands(""), "");
+        assert_eq!(add_thousands("1"), "1");
+        assert_eq!(add_thousands("12"), "12");
+        assert_eq!(add_thousands("123"), "123");
+    }
+
+    #[test]
+    fn add_thousands_inserts_commas_every_three_from_the_right() {
+        assert_eq!(add_thousands("1000"), "1,000");
+        assert_eq!(add_thousands("1000000"), "1,000,000");
+        assert_eq!(add_thousands("12345678"), "12,345,678");
+        assert_eq!(add_thousands("123456789"), "123,456,789");
+    }
+
+    #[test]
+    fn parse_f64_round_trips_human_strings() {
+        assert_eq!(parse_f64("1,234.56"), 1234.56);
+        assert_eq!(parse_f64("0"), 0.0);
+        assert_eq!(parse_f64("0.00"), 0.0);
+    }
+
+    #[test]
+    fn parse_f64_returns_zero_on_garbage() {
+        // Documented behaviour, but worth pinning: callers cannot
+        // distinguish "value was zero" from "parse failed".
+        assert_eq!(parse_f64(""), 0.0);
+        assert_eq!(parse_f64("not a number"), 0.0);
+        // "NaN" parses as a valid f64 (f64::NAN), NOT as 0.0 - the
+        // fallback only catches genuine parse failures. Worth pinning
+        // so we notice if the upstream behaviour ever changes.
+        assert!(parse_f64("NaN").is_nan());
+    }
+
+    #[test]
+    fn fill_percentage_handles_zero_total() {
+        assert_eq!(fill_percentage("0", "0"), "N/A");
+        assert_eq!(fill_percentage("100", "0"), "N/A");
+    }
+
+    #[test]
+    fn fill_percentage_half_full() {
+        // current=50, free=50 -> fill = current / (current + free) = 50%.
+        assert_eq!(fill_percentage("50", "50"), "50.0000%");
+    }
+
+    #[test]
+    fn html_escape_passes_safe_strings_through() {
+        assert_eq!(html_escape("plain ascii"), "plain ascii");
+        assert_eq!(html_escape("USDC-vault-1"), "USDC-vault-1");
+    }
+
+    #[test]
+    fn html_escape_handles_all_five_entities() {
+        assert_eq!(
+            html_escape("<a href=\"#\">A & B's 'test'</a>"),
+            "&lt;a href=&quot;#&quot;&gt;A &amp; B&#39;s &#39;test&#39;&lt;/a&gt;",
+        );
+    }
+}
