@@ -101,13 +101,22 @@ pub async fn poll_once(
 }
 
 /// Build the styled HTML alert message sent to Telegram.
+///
+/// `cfg.vault_name` and `cfg.vault_address` are operator-supplied,
+/// so they get `html_escape`d before interpolation. The address
+/// also flows into a `href="..."` attribute; escaping the quote
+/// and ampersand is enough since the value is already constrained
+/// to hex by the address parser at startup.
 fn build_alert_message(cfg: &Config, avail: &str, total: &str) -> String {
     let fill_pct = fmt::fill_percentage(avail, total);
+    let name = fmt::html_escape(&cfg.vault_name);
+    let addr = fmt::html_escape(&cfg.vault_address);
+    let addr_short = fmt::html_escape(&cfg.vault_address[..10]);
     format!(
     "\u{1F6A8} <b>VaultWatch Alert</b>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
-     \u{1F3E6} <b>Vault:</b>  {}\n\
-     \u{1F517} <a href=\"https://etherscan.io/address/{}\">{}</a>\n\
+     \u{1F3E6} <b>Vault:</b>  {name}\n\
+     \u{1F517} <a href=\"https://etherscan.io/address/{addr}\">{addr_short}</a>\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{2705} <b>Available:</b>  {avail}\n\
      \u{1F4B0} <b>Total Assets:</b>  {total}\n\
@@ -115,9 +124,6 @@ fn build_alert_message(cfg: &Config, avail: &str, total: &str) -> String {
      \u{1F3AF} <b>Threshold:</b>  {}\n\
      \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\n\
      \u{23F0} <i>{}</i>",
-    cfg.vault_name,
-    cfg.vault_address,
-    &cfg.vault_address[..10],
     cfg.threshold,
     fmt::timestamp(),
   )

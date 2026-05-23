@@ -56,6 +56,32 @@ pub fn parse_f64(s: &str) -> f64 {
     s.replace(',', "").parse().unwrap_or(0.0)
 }
 
+/// Escape a string for inclusion in a Telegram HTML message.
+///
+/// Telegram's HTML parse_mode honours the same five entities the
+/// HTML spec defines: `& < > " '`. Any of these in operator-
+/// supplied text (e.g. `VAULT_NAME="A&B <test>"`) breaks the
+/// parser visually and, in the worst case for a hostile-input
+/// scenario, lets an attacker inject anchor or pre tags that the
+/// chat will render. Escape preemptively.
+///
+/// Hand-rolled (5 substitutions, ~10 lines) rather than pulling
+/// in `html_escape` as a new dep for one call site.
+pub fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// Current wall-clock time as `HH:MM:SS UTC`.
 ///
 /// Uses [`std::time::SystemTime`] to avoid pulling in the `chrono` crate.
