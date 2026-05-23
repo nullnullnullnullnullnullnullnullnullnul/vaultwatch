@@ -4,12 +4,19 @@
 //! for querying on-chain deposit availability.
 
 use ethers::prelude::*;
+use ethers::providers::Http;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::config::Config;
 use crate::fmt;
 use crate::log;
 use crate::telegram;
+
+/// Total RPC request budget. Picked at 10s because a healthy
+/// public RPC answers a single eth_call in <500ms; anything past
+/// 10s is the endpoint being unreachable, not slow.
+const RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
 abigen!(
     Erc4626Vault,
@@ -19,14 +26,24 @@ abigen!(
   ]"#
 );
 
-/// Create a provider and bind it to the vault contract.
+/// Create a provider with a bounded request timeout and bind it to
+/// the vault contract.
+///
+/// Important: `ethers::providers::Provider::<Http>::try_from(url)`
+/// uses a default `reqwest::Client` with NO request timeout, so a
+/// stuck RPC endpoint hangs the entire polling loop indefinitely.
+/// We build our own client with [`RPC_TIMEOUT`] and inject it via
+/// `Http::new_with_client`.
 ///
 /// # Errors
 ///
-/// Returns an error if the RPC URL is malformed or the vault address
-/// cannot be parsed as a valid Ethereum address.
+/// Returns an error if the RPC URL is malformed, the vault address
+/// is not a valid Ethereum address, or the underlying reqwest client
+/// cannot be constructed.
 pub fn connect(cfg: &Config) -> eyre::Result<Erc4626Vault<Provider<Http>>> {
-    let provider = Provider::<Http>::try_from(cfg.rpc_url.as_str())?;
+    let url: reqwest::Url = cfg.rpc_url.parse()?;
+    let client = reqwest::Client::builder().timeout(RPC_TIMEOUT).build()?;
+    let provider = Provider::new(Http::new_with_client(url, client));
     let address: Address = cfg.vault_address.parse()?;
     Ok(Erc4626Vault::new(address, Arc::new(provider)))
 }
