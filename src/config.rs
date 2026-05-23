@@ -1,5 +1,6 @@
 //! Application configuration loaded from environment variables.
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use ethers::types::U256;
@@ -35,6 +36,10 @@ pub struct Config {
     /// alert again. Default reset is 95% of the alert threshold;
     /// see [`HYSTERESIS_NUMERATOR`] / [`HYSTERESIS_DENOMINATOR`].
     pub reset_threshold_atomic: U256,
+    /// Path to the JSON state file that persists the cooldown flag
+    /// across restarts. Override via `STATE_FILE`; defaults to
+    /// `./vaultwatch.state` next to the working directory.
+    pub state_file: PathBuf,
     pub telegram: Option<TelegramConfig>,
 }
 
@@ -55,8 +60,8 @@ impl Config {
         let decimals: u32 = env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap();
         let threshold: u64 = env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap();
         let threshold_atomic = U256::from(threshold) * U256::exp10(decimals as usize);
-        let reset_threshold_atomic =
-            threshold_atomic * U256::from(HYSTERESIS_NUMERATOR) / U256::from(HYSTERESIS_DENOMINATOR);
+        let reset_threshold_atomic = threshold_atomic * U256::from(HYSTERESIS_NUMERATOR)
+            / U256::from(HYSTERESIS_DENOMINATOR);
         Self {
             rpc_url: env_var("RPC_URL", None),
             vault_address: env_var("VAULT_ADDRESS", None),
@@ -68,6 +73,7 @@ impl Config {
             threshold,
             threshold_atomic,
             reset_threshold_atomic,
+            state_file: PathBuf::from(env_var("STATE_FILE", Some("./vaultwatch.state"))),
             telegram: TelegramConfig::from_env(),
         }
     }
