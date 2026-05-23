@@ -2,6 +2,11 @@
 name = "vaultwatch"
 version = "0.1.0"
 edition = "2021"
+# MSRV: pinned so contributors and CI agree on the floor. Bump
+# when actually needed by a feature in this crate, not pre-emptively.
+# Floor is 1.87 because fmt::add_thousands uses `u32::is_multiple_of`
+# (stable in 1.87); anything older fails clippy's incompatible_msrv.
+rust-version = "1.87"
 description = "ERC-4626 vault deposit availability monitor with Telegram notifications."
 license = "MIT"
 repository = "https://github.com/nullnullnullnullnullnullnullnullnullnul/vaultwatch"
@@ -11,10 +16,13 @@ categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
 
 [dependencies]
 ethers = { version = "2.0", features = ["abigen", "rustls"] }
-tokio = { version = "1", features = ["rt", "macros", "time"] }
+# Pinned to 0.11 so the Client and Url types we pass to ethers'
+# Http::new_with_client are the same versions ethers compiles
+# against; mixing 0.12 here against 0.11 inside ethers gives a
+# silent type mismatch with no helpful diagnostic.
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dotenvy = "0.15"
-ethers-core = "2.0"
 eyre = "0.6.12"

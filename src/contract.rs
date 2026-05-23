@@ -94,13 +94,40 @@ pub async fn poll_once(
     http: &reqwest::Client,
     alerted: &mut bool,
 ) {
+    // The zero address as receiver is the convention for "show me
+    // the global deposit cap without targeting a specific user".
+    // ERC-4626's spec lets vaults apply per-receiver limits (KYC
+    // whitelists, role gating), in which case maxDeposit(0x0) may
+    // return 0 or U256::MAX rather than the headline cap. For the
+    // unrestricted public vaults this bot targets, the convention
+    // holds; if a deployment ever points at a gated vault, the
+    // alert would either never fire or fire constantly, both
+    // obvious failure modes from the logged values.
     let max_call = contract.max_deposit(Address::zero());
     let total_call = contract.total_assets();
-    let result = tokio::try_join!(max_call.call(), total_call.call());
-    let (available, total_assets) = match result {
+    // Tag each future with a call name so a failure log says
+    // which call hit the wire problem ("max_deposit() failed: ..."
+    // vs "total_assets() failed: ..."), not just an opaque ethers
+    // error. try_join! still short-circuits on the first failure
+    // and cancels the other call, so parallelism is preserved on
+    // the happy path and we do not waste a second RPC round-trip
+    // on the unhappy one.
+    let max_fut = async {
+        max_call
+            .call()
+            .await
+            .map_err(|e| format!("max_deposit(): {e}"))
+    };
+    let total_fut = async {
+        total_call
+            .call()
+            .await
+            .map_err(|e| format!("total_assets(): {e}"))
+    };
+    let (available, total_assets) = match tokio::try_join!(max_fut, total_fut) {
         Ok(vals) => vals,
-        Err(e) => {
-            log::error(&format!("{e}"));
+        Err(msg) => {
+            log::error(&msg);
             return;
         }
     };
