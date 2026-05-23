@@ -27,8 +27,23 @@ pub struct Config {
     /// comparison happens at full on-chain precision without any
     /// f64 / string round-trip.
     pub threshold_atomic: U256,
+    /// Hysteresis floor: the `alerted` flag is reset only when
+    /// `available` drops below this value, NOT just below
+    /// `threshold_atomic`. Without a gap between the two, a vault
+    /// whose available capacity oscillates by even one wei around
+    /// the threshold would alert every poll: alert, dip, reset,
+    /// alert again. Default reset is 95% of the alert threshold;
+    /// see [`HYSTERESIS_NUMERATOR`] / [`HYSTERESIS_DENOMINATOR`].
+    pub reset_threshold_atomic: U256,
     pub telegram: Option<TelegramConfig>,
 }
+
+/// Numerator of the hysteresis ratio. With denominator 100, this
+/// produces a 95% reset threshold: alert at T, reset only when
+/// `available < 0.95 * T`. Hardcoded for now; if the project ever
+/// needs per-deployment tuning, lift to an env var.
+const HYSTERESIS_NUMERATOR: u32 = 95;
+const HYSTERESIS_DENOMINATOR: u32 = 100;
 
 impl Config {
     /// Build a [`Config`] from environment variables.
@@ -40,6 +55,8 @@ impl Config {
         let decimals: u32 = env_var("TOKEN_DECIMALS", Some("18")).parse().unwrap();
         let threshold: u64 = env_var("DEPOSIT_THRESHOLD", Some("2000")).parse().unwrap();
         let threshold_atomic = U256::from(threshold) * U256::exp10(decimals as usize);
+        let reset_threshold_atomic =
+            threshold_atomic * U256::from(HYSTERESIS_NUMERATOR) / U256::from(HYSTERESIS_DENOMINATOR);
         Self {
             rpc_url: env_var("RPC_URL", None),
             vault_address: env_var("VAULT_ADDRESS", None),
@@ -50,6 +67,7 @@ impl Config {
             ),
             threshold,
             threshold_atomic,
+            reset_threshold_atomic,
             telegram: TelegramConfig::from_env(),
         }
     }

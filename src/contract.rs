@@ -72,13 +72,18 @@ pub async fn poll_once(
     let avail = fmt::tokens(available, cfg.decimals);
     let total = fmt::tokens(total_assets, cfg.decimals);
     log::info(&format!("available: {avail} | totalAssets: {total}"));
-    // Compare U256 values directly. The previous code formatted both
-    // sides to a 2-decimal string and re-parsed to f64, which lost
-    // precision and silently coerced any parse failure to 0 (so a
-    // genuine slot opening could miss the alert).
-    let above = available >= cfg.threshold_atomic;
-    if !above {
+    // Hysteresis: alert when available crosses ABOVE the alert
+    // threshold; reset the cooldown only when it falls BELOW a
+    // strictly lower reset threshold. Without that gap, a vault
+    // whose available oscillates by one wei around the threshold
+    // would alert on every poll.
+    if available < cfg.reset_threshold_atomic {
         *alerted = false;
+        return;
+    }
+    if available < cfg.threshold_atomic {
+        // In the hysteresis band: still cooling down from the last
+        // alert (or never alerted in this window). Nothing to do.
         return;
     }
     log::positive(&format!(
